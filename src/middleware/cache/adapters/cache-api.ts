@@ -30,8 +30,13 @@ export const cacheApi = (options: CacheApiOptions): ((c: Context) => Promise<KVL
         const r = await cache.match(key)
         return r ?? null
       },
-      async set(key: string, env: Envelope, _opts: SetOptions) {
-        const res = new Response(env.body, { status: env.status, headers: env.headers })
+      async set(key: string, env: Envelope, opts: SetOptions) {
+        const headers = { ...env.headers }
+        if (!headers['cache-control'] && !headers['Cache-Control']) {
+          const ttl = opts.ttlSeconds ?? 31536000
+          headers['Cache-Control'] = `max-age=${ttl}`
+        }
+        const res = new Response(env.body, { status: env.status, headers })
         await cache.put(key, res)
       },
       async delete(key) {
