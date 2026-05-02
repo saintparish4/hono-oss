@@ -7,7 +7,7 @@ import type { Context } from '../../context'
 import type { MiddlewareHandler } from '../../types'
 import type { StatusCode } from '../../utils/http-status'
 import { cacheApi as buildCacheApiStore } from './adapters/cache-api'
-import type { CacheOptions, KVLike } from './types'
+import type { CacheOptions, Envelope, KVLike, SetOptions, StoreErrorHook } from './types'
 import {
   parseDirectiveList,
   parseHeaderList,
@@ -59,6 +59,12 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
   )
 
   const wait = options.wait === true
+
+  const defaultStoreErrorHook: StoreErrorHook = (err, op, key) =>
+    console.warn(`[hono cache] store ${op} failed for key ${key}:`, err)
+
+  const errorHook: StoreErrorHook | null =
+    options.onStoreError === false ? null : (options.onStoreError ?? defaultStoreErrorHook)
 
   const getStore: (c: Context) => Promise<KVLike> = options.store
     ? async () => options.store as KVLike
@@ -117,12 +123,41 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
     const userKey = options.keyGenerator ? await options.keyGenerator(c) : c.req.url
     const store = await getStore(c)
 
+    const safeGet = async (k: string) => {
+      try {
+        return await store.get(k)
+      } catch (err) {
+        if (errorHook) {
+          await errorHook(err, 'get', k, c)
+        }
+        return null
+      }
+    }
+    const safeSet = async (k: string, env: Envelope, opts: SetOptions) => {
+      try {
+        await store.set(k, env, opts)
+      } catch (err) {
+        if (errorHook) {
+          await errorHook(err, 'set', k, c)
+        }
+      }
+    }
+    const safeDelete = async (k: string) => {
+      try {
+        await store.delete(k)
+      } catch (err) {
+        if (errorHook) {
+          await errorHook(err, 'delete', k, c)
+        }
+      }
+    }
+
     // Compute candidate vary headers from the user-supplied hint
     const hintedVary = varyDirectives // array of lowercased names
 
     // Try the vary-suffixed key first, then the bare key (warm-up path)
     const hintedKey = userKey + buildVaryKeySuffix(hintedVary, c.req.raw.headers)
-    let cached = await store.get(hintedKey)
+    let cached = await safeGet(hintedKey)
     let resolvedKey = hintedKey
 
     if (cached) {
@@ -139,10 +174,9 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
         // Warm-up rewrite: move from bare key to vary-suffixed key
         const newKey = userKey + buildVaryKeySuffix(allVary, c.req.raw.headers)
         if (newKey !== resolvedKey) {
-          // Re-store under the correct key, drop the wrong one
           const env = cached instanceof Response ? await toEnvelope(cached) : cached
-          await store.set(newKey, env, {})
-          await store.delete(resolvedKey)
+          await safeSet(newKey, env, {})
+          await safeDelete(resolvedKey)
         }
       }
 
@@ -166,11 +200,11 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
 
     const env = await toEnvelope(c.res)
     const ttlSeconds = parseMaxAge(c.res.headers.get('Cache-Control'))
-    const writePromise = store.set(writeKey, env, { ttlSeconds })
+    const writePromise = safeSet(writeKey, env, { ttlSeconds })
     if (wait) {
       await writePromise
     } else {
-      c.executionCtx.waitUntil(writePromise)
+      c.executionCtx.waitUntil(writePromise.catch(() => {}))
     }
   }
 }
