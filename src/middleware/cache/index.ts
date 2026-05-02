@@ -8,7 +8,13 @@ import type { MiddlewareHandler } from '../../types'
 import type { StatusCode } from '../../utils/http-status'
 import { cacheApi as buildCacheApiStore } from './adapters/cache-api'
 import type { CacheOptions, KVLike } from './types'
-import { parseDirectiveList, parseHeaderList, shouldNotStore } from './utils'
+import {
+  parseDirectiveList,
+  parseHeaderList,
+  shouldNotStore,
+  buildVaryKeySuffix,
+  parseMaxAge,
+} from './utils'
 
 const defaultCacheableStatusCodes: ReadonlyArray<StatusCode> = [200]
 
@@ -111,8 +117,35 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
     const userKey = options.keyGenerator ? await options.keyGenerator(c) : c.req.url
     const store = await getStore(c)
 
-    const cached = await store.get(userKey)
+    // Compute candidate vary headers from the user-supplied hint
+    const hintedVary = varyDirectives // array of lowercased names
+
+    // Try the vary-suffixed key first, then the bare key (warm-up path)
+    const hintedKey = userKey + buildVaryKeySuffix(hintedVary, c.req.raw.headers)
+    let cached = await store.get(hintedKey)
+    let resolvedKey = hintedKey
+
     if (cached) {
+      // If the cached response declares a Vary we didn't account for, we must
+      // re-key. Read the response Vary header.
+      const cachedVary =
+        cached instanceof Response
+          ? cached.headers.get('Vary')
+          : (cached.headers['vary'] ?? cached.headers['Vary'] ?? null)
+      const responseVary = parseHeaderList(cachedVary).filter((v) => v !== '*')
+      const allVary = Array.from(new Set([...hintedVary, ...responseVary])).sort()
+
+      if (allVary.length > hintedVary.length && resolvedKey === userKey) {
+        // Warm-up rewrite: move from bare key to vary-suffixed key
+        const newKey = userKey + buildVaryKeySuffix(allVary, c.req.raw.headers)
+        if (newKey !== resolvedKey) {
+          // Re-store under the correct key, drop the wrong one
+          const env = cached instanceof Response ? await toEnvelope(cached) : cached
+          await store.set(newKey, env, {})
+          await store.delete(resolvedKey)
+        }
+      }
+
       if (cached instanceof Response) {
         return new Response(cached.body, cached)
       }
@@ -129,8 +162,11 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
       return
     }
 
+    const writeKey = userKey + buildVaryKeySuffix(hintedVary, c.req.raw.headers)
+
     const env = await toEnvelope(c.res)
-    const writePromise = store.set(userKey, env, {})
+    const ttlSeconds = parseMaxAge(c.res.headers.get('Cache-Control'))
+    const writePromise = store.set(writeKey, env, { ttlSeconds })
     if (wait) {
       await writePromise
     } else {
