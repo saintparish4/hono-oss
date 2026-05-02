@@ -16,6 +16,21 @@ export interface CacheApiOptions {
  * calls the factory once per request
  */
 
+// Scheme used to wrap arbitrary KVLike string keys into a valid URL for
+// the underlying Web Cache API, which requires URL-formatted keys.
+const KEY_URL_PREFIX = 'https://hono.cache/'
+
+const toCacheUrl = (key: string): string => {
+  // Fast path: already a valid absolute URL (e.g. c.req.url) — use as-is so
+  // that real-world middleware keys remain debuggable in Cache Storage.
+  try {
+    new URL(key)
+    return key
+  } catch {
+    return KEY_URL_PREFIX + encodeURIComponent(key)
+  }
+}
+
 export const cacheApi = (options: CacheApiOptions): ((c: Context) => Promise<KVLike>) => {
   return async (c: Context): Promise<KVLike> => {
     if (!globalThis.caches) {
@@ -27,7 +42,7 @@ export const cacheApi = (options: CacheApiOptions): ((c: Context) => Promise<KVL
 
     return {
       async get(key: string) {
-        const r = await cache.match(key)
+        const r = await cache.match(toCacheUrl(key))
         return r ?? null
       },
       async set(key: string, env: Envelope, opts: SetOptions) {
@@ -37,10 +52,10 @@ export const cacheApi = (options: CacheApiOptions): ((c: Context) => Promise<KVL
           headers['Cache-Control'] = `max-age=${ttl}`
         }
         const res = new Response(env.body, { status: env.status, headers })
-        await cache.put(key, res)
+        await cache.put(toCacheUrl(key), res)
       },
       async delete(key) {
-        await cache.delete(key)
+        await cache.delete(toCacheUrl(key))
       },
     }
   }

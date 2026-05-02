@@ -4,8 +4,8 @@
  * Workers KV, Redis) MUST pass this suite to guarantee semantic parity.
  */
 
-import type { Envelope, KVLike } from '../types'
 import { describe, it, beforeEach, expect } from 'vitest'
+import type { Envelope, KVLike } from '../types'
 
 const env = (status: number, body: string, headers: Record<string, string> = {}): Envelope => ({
   status,

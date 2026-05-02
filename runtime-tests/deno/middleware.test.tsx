@@ -130,11 +130,11 @@ Deno.test('Serve Static middleware', async () => {
 
   res = await app.request('http://localhost/static/helloworld')
   assertEquals(res.status, 200)
-  assertEquals(await res.text(), 'Hi\n')
+  assertMatch(await res.text(), /^Hi\r?\n$/)
 
   res = await app.request('http://localhost/static/hello.world')
   assertEquals(res.status, 200)
-  assertEquals(await res.text(), 'Hi\n')
+  assertMatch(await res.text(), /^Hi\r?\n$/)
 
   res = await app.request('http://localhost/static-absolute-root/plain.txt')
   assertEquals(res.status, 200)

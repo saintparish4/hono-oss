@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'bun:test'
-import type { Envelope, KVLike } from '../../src/middleware/cache/types'
 import { memoryStore } from '../../src/middleware/cache/adapters/memory'
+import type { Envelope, KVLike } from '../../src/middleware/cache/types'
 
 const env = (status: number, body: string, headers: Record<string, string> = {}): Envelope => ({
   status,

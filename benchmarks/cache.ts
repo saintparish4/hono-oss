@@ -1,7 +1,7 @@
 import { run, group, bench } from 'mitata'
 import { Hono } from '../src/hono'
-import { cache } from '../src/middleware/cache/index'
 import { memoryStore } from '../src/middleware/cache/adapters/memory'
+import { cache } from '../src/middleware/cache/index'
 import type { Envelope, KVLike, SetOptions } from '../src/middleware/cache/types'
 
 bench('noop', () => {})

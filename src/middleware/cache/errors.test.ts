@@ -1,13 +1,7 @@
 import type { ExecutionContext } from '../../context'
 import { Hono } from '../../hono'
-import { cache } from '.'
 import type { Envelope, KVLike, SetOptions, StoreOp } from './types'
-
-const noopEnv = (): Envelope => ({
-  status: 200,
-  headers: {},
-  body: new Uint8Array(),
-})
+import { cache } from '.'
 
 class FaultInjectingStore implements KVLike {
   private failures = new Map<StoreOp, number>()
@@ -115,7 +109,9 @@ describe('Cache middleware - store error handling', () => {
       async set() {
         throw new QuotaExceededError('quota')
       },
-      async delete() {},
+      async delete() {
+        await Promise.resolve()
+      },
     }
     const onStoreError = vi.fn()
     const app = new Hono()

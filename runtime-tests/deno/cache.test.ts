@@ -1,8 +1,8 @@
 import { assertEquals, assertNotEquals } from '@std/assert'
 import type { Context } from '../../src/context.ts'
-import type { Envelope, KVLike } from '../../src/middleware/cache/types.ts'
 import { cacheApi } from '../../src/middleware/cache/adapters/cache-api.ts'
 import { memoryStore } from '../../src/middleware/cache/adapters/memory.ts'
+import type { Envelope, KVLike } from '../../src/middleware/cache/types.ts'
 
 const env = (status: number, body: string, headers: Record<string, string> = {}): Envelope => ({
   status,
@@ -55,6 +55,9 @@ async function runContract(name: string, factory: () => Promise<KVLike> | KVLike
     if (got instanceof Response) {
       assertEquals(got.status, 201)
       assertEquals(got.headers.get('x-custom'), 'y')
+      // Drain the body so the underlying CacheResponseResource is released
+      // (Deno's resource-leak detector requires this).
+      await got.body?.cancel()
     } else {
       assertEquals(got!.status, 201)
       assertEquals(got!.headers['x-custom'], 'y')

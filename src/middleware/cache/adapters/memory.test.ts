@@ -1,5 +1,5 @@
-import { memoryStore } from './memory'
 import { runAdapterContract } from './contract'
+import { memoryStore } from './memory'
 
 runAdapterContract('memoryStore (default)', () => memoryStore())
 

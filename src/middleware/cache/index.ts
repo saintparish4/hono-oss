@@ -19,8 +19,34 @@ import {
 const defaultCacheableStatusCodes: ReadonlyArray<StatusCode> = [200]
 
 /**
- * Cache Middleware for Hono.
+ * HTTP response cache middleware with pluggable storage.
  *
+ * **Storage (`store`)** — Provide a {@link KVLike} implementation. Built-in helpers exported from this module:
+ * {@link cacheApi} (Workers Cache API / `globalThis.caches`) and {@link memoryStore} (in-memory envelope store).
+ * You must pass either `store` or the legacy {@link CacheOptions.cacheName} option.
+ *
+ * **`cacheName` (deprecated)** — Prefer `store: cacheApi({ cacheName: '…' })` (or a factory) instead of passing
+ * `cacheName` alone; the latter only constructs the Cache API adapter for backward compatibility.
+ *
+ * **`writeStrategy`** — Controls when `store.set` completes relative to the response:
+ * `'await'` waits before returning; `'background'` uses `executionCtx.waitUntil` when available; `'auto'` picks
+ * background when `waitUntil` exists, otherwise await.
+ *
+ * **`wait` (deprecated)** — Boolean precursor to `writeStrategy`; `true` → `'await'`, `false` → `'background'`.
+ * Prefer `writeStrategy` instead.
+ *
+ * **`onStoreError`** — Called when `get`, `set`, or `delete` throws (signature includes operation and key).
+ * Defaults to logging a warning. Pass `false` to swallow errors silently.
+ *
+ * **`vary`** — Header names (`string` or `string[]`) that are merged into the response `Vary` header and used to
+ * derive a request-specific key suffix from those header values on the incoming request (normalized, order-independent).
+ * The option must not include `*` (middleware-level `*` disables effective caching). Stored responses that advertise
+ * `Vary: *` are skipped. When a hit’s stored `Vary` implies extra dimensions beyond the configured hint, the
+ * middleware may re-key once so later lookups use the full vary-aware key.
+ *
+ * This entry also re-exports {@link cacheApi}, {@link memoryStore}, and related types for adapters.
+ *
+ * @param options - See {@link CacheOptions}.
  * @see {@link https://hono.dev/docs/middleware/builtin/cache}
  */
 

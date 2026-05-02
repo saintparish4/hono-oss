@@ -1,0 +1,4 @@
+# Static test fixtures must check out with LF on every OS so byte-exact
+# response assertions don't fail under Windows core.autocrlf=true.
+runtime-tests/**/static/** text eol=lf
+runtime-tests/**/favicon.ico binary

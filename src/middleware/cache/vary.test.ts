@@ -1,8 +1,8 @@
+import { describe, it, expect, vi } from 'vitest'
 import { Hono } from '../../hono'
-import { cache } from '.'
 import { memoryStore } from './adapters/memory'
 import type { KVLike } from './types'
-import { describe, it, expect, vi } from 'vitest'
+import { cache } from '.'
 
 /**
  * Mimics the CacheApi adapter behavior: stores/returns Response objects.
