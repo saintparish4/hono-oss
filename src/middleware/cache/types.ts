@@ -52,7 +52,7 @@ export interface CacheOptions {
   store?: KVLike
 
   /**
-   * @deprecated Use `store: cacheApi({ cacheName })`. Kept for backwards-compatibility
+   * @deprecated use `store: cacheApi({ cacheName })`
    * String or factory; when set, a CacheApi-backed store is auto-constructed.
    */
   cacheName?: string | ((c: Context) => Promise<string> | string)
@@ -77,7 +77,7 @@ export interface CacheOptions {
    */
   writeStrategy?: WriteStrategy
 
-  /** @deprecated Use writeStrategy: 'await' | 'background'*/
+  /** @deprecated use `writeStrategy: 'await' | 'background'` */
   wait?: boolean
 
   // Hook invoked when any store op throws. Default: console.warn

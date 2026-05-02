@@ -58,7 +58,20 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
     options.cacheableStatusCodes ?? defaultCacheableStatusCodes
   )
 
-  const wait = options.wait === true
+  const resolveWriteStrategy = (c: Context): 'await' | 'background' => {
+    const explicit = options.writeStrategy
+    if (explicit === 'await' || explicit === 'background') {
+      return explicit
+    }
+    if (options.wait === true) {
+      return 'await'
+    }
+    if (options.wait === false) {
+      return 'background'
+    }
+    // 'auto' or undefined
+    return c.executionCtx ? 'background' : 'await'
+  }
 
   const defaultStoreErrorHook: StoreErrorHook = (err, op, key) =>
     console.warn(`[hono cache] store ${op} failed for key ${key}:`, err)
@@ -200,8 +213,9 @@ export const cache = (options: CacheOptions): MiddlewareHandler => {
 
     const env = await toEnvelope(c.res)
     const ttlSeconds = parseMaxAge(c.res.headers.get('Cache-Control'))
+    const strategy = resolveWriteStrategy(c)
     const writePromise = safeSet(writeKey, env, { ttlSeconds })
-    if (wait) {
+    if (strategy === 'await') {
       await writePromise
     } else {
       c.executionCtx.waitUntil(writePromise.catch(() => {}))
